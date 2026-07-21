@@ -1,73 +1,70 @@
-import base64
-import hashlib
-import os
+import sqlite3
 
-from cryptography.fernet import Fernet
+DB_FILE = 'passwords.db'
 
 
-KEY_FILE = "key.key"
-PASSWORD_FILE = "password.txt"
+def get_connection():
+    conn = sqlite3.connect(DB_FILE)
+    conn.execute(
+        'CREATE TABLE IF NOT EXISTS passwords (id INTEGER PRIMARY KEY, name TEXT UNIQUE, password TEXT)'
+    )
+    return conn
 
 
-def generate_key(password):
-    digest = hashlib.sha256(password.encode("utf-8")).digest()
-    return base64.urlsafe_b64encode(digest)
+def view(conn):
+    cursor = conn.execute('SELECT name, password FROM passwords ORDER BY name')
+    rows = cursor.fetchall()
 
-
-def load_key(password):
-    if not os.path.exists(KEY_FILE):
-        key = generate_key(password)
-        with open(KEY_FILE, "wb") as file:
-            file.write(key)
-    else:
-        with open(KEY_FILE, "rb") as file:
-            key = file.read()
-    return key
-
-
-pswd = input("Enter your Master Password : ").strip()
-fer = Fernet(load_key(pswd))
-
-
-def view():
-    if not os.path.exists(PASSWORD_FILE):
-        print("No saved passwords yet.")
+    if not rows:
+        print('No passwords stored yet.')
         return
 
-    with open(PASSWORD_FILE, "r", encoding="utf-8") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            name, password = line.strip().split("|", 1)
-            try:
-                decoded_password = fer.decrypt(password.encode()).decode()
-            except Exception:
-                decoded_password = password
-            print(f"Name : {name}")
-            print(f"Password : {decoded_password}")
-            print("-" * 15)
+    print('\nSaved passwords:')
+    print('-' * 20)
+    for name, password in rows:
+        print(f'Name    : {name}')
+        print(f'Password: {password}')
+        print('-' * 20)
 
 
-def add():
-    name = input("Enter Your Account Name : ")
-    password = input("Enter your Password : ")
+def add(conn):
+    name = input('Enter account name: ').strip()
+    if not name:
+        print('Account name cannot be empty.')
+        return
 
-    with open(PASSWORD_FILE, "a", encoding="utf-8") as f:
-        f.write(f"{name}|{fer.encrypt(password.encode()).decode()}\n")
+    password = input('Enter password: ').strip()
+    if not password:
+        print('Password cannot be empty.')
+        return
+
+    conn.execute(
+        'INSERT OR REPLACE INTO passwords (name, password) VALUES (?, ?)',
+        (name, password)
+    )
+    conn.commit()
+    print('Password saved.')
 
 
-while True:
-    mode = input("Would you like to add new password or view existing password ones or Quit - Q : ").strip().lower()
-    if mode == "q":
-        break
+def main():
+    conn = get_connection()
 
-    if mode == "view":
-        view()
-    elif mode == "add":
-        add()
-    else:
-        print("Invalid Code")
-        continue
+    while True:
+        choice = input('\nChoose an action: view, add, quit: ').strip().lower()
+        if choice in ('q', 'quit'):
+            break
+        elif choice == 'view':
+            view(conn)
+        elif choice == 'add':
+            add(conn)
+        else:
+            print('Please type view, add, or quit.')
+
+    conn.close()
+
+
+if __name__ == '__main__':
+    main()
 
 
 
