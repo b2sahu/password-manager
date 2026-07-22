@@ -1,71 +1,107 @@
 import sqlite3
+from cryptography.fernet import Fernet
 
-DB_FILE = 'passwords.db'
+
+# only once to generate key
+
+def write_key():
+    key = Fernet.generate_key()
+    with open("key.key", "wb") as key_file:
+        key_file.write(key)
+
+# if key not empty
+with open("key.key", "rb") as file:
+        key = file.read()
+        if key is None:
+            write_key()
+
+def load_key():
+    with open("key.key", "rb") as file:
+        key = file.read()
+    return key
 
 
-def get_connection():
-    conn = sqlite3.connect(DB_FILE)
-    conn.execute(
-        'CREATE TABLE IF NOT EXISTS passwords (id INTEGER PRIMARY KEY, name TEXT UNIQUE, password TEXT)'
+# Master Password
+pswd = input("Enter your Master Password: ")
+
+# Encryption 
+key = load_key() + pswd.encode()
+fer = Fernet(key)
+
+# SQLite Database
+
+conn = sqlite3.connect("password.db")
+cursor = conn.cursor()
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS passwords(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_name TEXT NOT NULL,
+    encrypted_password TEXT NOT NULL
+)
+""")
+
+conn.commit()
+
+
+def add():
+    name = input("Enter Your Account Name : ")
+    password = input("Enter Your Password : ")
+
+    encrypted = fer.encrypt(password.encode()).decode()
+
+    # Store in SQLite Database
+    cursor.execute(
+        "INSERT INTO passwords(account_name, encrypted_password) VALUES(?, ?)",
+        (name, encrypted)
     )
-    return conn
 
-
-def view(conn):
-    cursor = conn.execute('SELECT name, password FROM passwords ORDER BY name')
-    rows = cursor.fetchall()
-
-    if not rows:
-        print('No passwords stored yet.')
-        return
-
-    print('\nSaved passwords:')
-    print('-' * 20)
-    for name, password in rows:
-        print(f'Name    : {name}')
-        print(f'Password: {password}')
-        print('-' * 20)
-
-
-def add(conn):
-    name = input('Enter account name: ').strip()
-    if not name:
-        print('Account name cannot be empty.')
-        return
-
-    password = input('Enter password: ').strip()
-    if not password:
-        print('Password cannot be empty.')
-        return
-
-    conn.execute(
-        'INSERT OR REPLACE INTO passwords (name, password) VALUES (?, ?)',
-        (name, password)
-    )
     conn.commit()
-    print('Password saved.')
+
+    print("Password saved successfully!")
 
 
-def main():
-    conn = get_connection()
+# View from Database
 
-    while True:
-        choice = input('\nChoose an action: view, add, quit: ').strip().lower()
-        if choice in ('q', 'quit'):
-            break
-        elif choice == 'view':
-            view(conn)
-        elif choice == 'add':
-            add(conn)
-        else:
-            print('Please type view, add, or quit.')
+def view_db():
+    cursor.execute("SELECT account_name, encrypted_password FROM passwords")
 
-    conn.close()
+    data = cursor.fetchall()
 
+    if not data:
+        print("Database is empty.")
+        return
 
-if __name__ == '__main__':
-    main()
+    for name, password in data:
+        print(f"\nName : {name}")
+        print(f"Password : {fer.decrypt(password.encode()).decode()}")
+        print("-" * 25)
 
 
+# Main Program
 
-    
+
+while True:
+
+    mode = input(
+        "\nChoose Option\n"
+        "1 - Add Password\n"
+        "2 - View From Database\n"
+        "3 - Quit\n\n"
+        "Enter Choice : "
+    ).lower()
+
+    if mode == "3":
+        break
+
+    elif mode == "1":
+        add()
+
+    elif mode == "2":
+        view_db()
+
+    else:
+        print("Invalid Option")
+
+
+conn.close()
