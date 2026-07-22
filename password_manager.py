@@ -58,7 +58,7 @@ def add():
 
     conn.commit()
 
-    print("Password saved successfully!")
+    print("Password saved successfully")
 
 
 # View from Database
@@ -77,6 +77,33 @@ def view_db():
         print(f"Password : {fer.decrypt(password.encode()).decode()}")
         print("-" * 25)
 
+def delete():
+    name = input("Enter the you want to delete : ")
+    cursor.execute("DELETE FROM passwords WHERE account_name = ?",(name,))
+    conn.commit()
+    if cursor.rowcount > 0:
+        print("Password updated successfully.")
+    else:
+        print("Account not found.")
+
+
+def update():
+    name = input("Enter Your Account Name : ")
+    password = input("Enter Your New Password : ")
+    encrypted = fer.encrypt(password.encode()).decode()
+    cursor.execute("""
+        UPDATE passwords
+        SET encrypted_password = ?
+        WHERE account_name = ?
+        """,(encrypted, name))
+    conn.commit()
+    if cursor.rowcount == 0:
+        print("Name Not Found")
+    else:
+        print("Password Updated successfully")
+
+conn.commit()
+
 
 # Main Program
 
@@ -87,11 +114,13 @@ while True:
         "\nChoose Option\n"
         "1 - Add Password\n"
         "2 - View From Database\n"
-        "3 - Quit\n\n"
+        "3 - Update Password\n"
+        "4 - Delete Data\n"
+        "5 - Quit\n\n"
         "Enter Choice : "
     ).lower()
 
-    if mode == "3":
+    if mode == "5":
         break
 
     elif mode == "1":
@@ -100,6 +129,11 @@ while True:
     elif mode == "2":
         view_db()
 
+    elif mode == "3":
+        update()
+
+    elif mode == "4":
+        delete()
     else:
         print("Invalid Option")
 
